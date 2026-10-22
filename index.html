@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Neon Drift: AI Siege</title>
+    <style>
+      :root {
+        --bg: #050816;
+        --panel: rgba(11, 16, 31, 0.72);
+        --panel-border: rgba(92, 210, 255, 0.45);
+        --cyan: #72e9ff;
+        --blue: #5fb2ff;
+        --purple: #8d7dff;
+        --pink: #ff75d5;
+        --green: #7ef7b4;
+        --red: #ff6a88;
+        --gold: #ffd76a;
+        --text: #eaf7ff;
+        --shadow: rgba(0, 0, 0, 0.65);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        background:
+          radial-gradient(circle at top, rgba(95, 178, 255, 0.12), transparent 40%),
+          linear-gradient(180deg, #02040b 0%, #060b17 100%);
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        color: var(--text);
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        overflow: hidden;
+      }
+
+      .game-shell {
+        position: relative;
+        width: min(96vw, 960px);
+        border: 1px solid rgba(114, 233, 255, 0.35);
+        border-radius: 18px;
+        background: rgba(7, 10, 20, 0.87);
+        box-shadow:
+          0 0 0 1px rgba(255, 255, 255, 0.04),
+          0 24px 60px rgba(1, 6, 16, 0.8),
+          0 0 30px rgba(95, 178, 255, 0.15);
+        overflow: hidden;
+      }
+
+      .hud-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 14px 18px;
+        background: linear-gradient(180deg, rgba(11, 18, 32, 0.9), rgba(9, 12, 23, 0.45));
+        border-bottom: 1px solid rgba(114, 233, 255, 0.2);
+        z-index: 4;
+      }
+
+      .hud-group {
+        display: flex;
+        flex-direction: column;
+        min-width: 90px;
+        text-align: center;
+      }
+
+      .label {
+        font-size: 10px;
+        letter-spacing: 0.26rem;
+        opacity: 0.72;
+      }
+
+      #score, #level, #health, #best {
+        font-size: clamp(1rem, 2vw, 1.4rem);
+        font-weight: 800;
+        text-shadow: 0 0 18px rgba(114, 233, 255, 0.5);
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+        background: linear-gradient(180deg, rgba(14, 18, 32, 1), rgba(8, 12, 23, 1));
+        cursor: crosshair;
+      }
+
+      .overlay {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: rgba(2, 6, 15, 0.35);
+        backdrop-filter: blur(3px);
+        z-index: 5;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+      }
+
+      .overlay.visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .panel {
+        width: min(80%, 480px);
+        border: 1px solid var(--panel-border);
+        border-radius: 18px;
+        background: var(--panel);
+        box-shadow: 0 0 26px rgba(90, 140, 255, 0.18);
+        text-align: center;
+        padding: 26px 24px 20px;
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        letter-spacing: 0.32rem;
+        font-size: 0.72rem;
+        color: var(--cyan);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2.2rem, 4vw, 3.2rem);
+        letter-spacing: 0.15rem;
+        color: var(--text);
+        text-shadow: 0 0 22px rgba(114, 233, 255, 0.4);
+      }
+
+      #statusText {
+        margin: 18px auto 22px;
+        max-width: 32ch;
+        line-height: 1.6;
+        color: rgba(234, 247, 255, 0.85);
+      }
+
+      button {
+        appearance: none;
+        border: 1px solid rgba(114, 233, 255, 0.7);
+        background: linear-gradient(180deg, rgba(12, 30, 55, 0.9), rgba(18, 22, 41, 0.9));
+        color: var(--text);
+        border-radius: 999px;
+        padding: 14px 26px;
+        font-size: 0.98rem;
+        font-weight: 700;
+        letter-spacing: 0.12rem;
+        text-transform: uppercase;
+        cursor: pointer;
+        box-shadow: 0 0 20px rgba(114, 233, 255, 0.15);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 0 24px rgba(114, 233, 255, 0.25);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      @media (max-width: 640px) {
+        .hud-bar {
+          flex-wrap: wrap;
+          gap: 6px;
+          padding-top: 10px;
+        }
+
+        .hud-group {
+          min-width: 72px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="game-shell">
+      <div class="hud-bar">
+        <div class="hud-group">
+          <span class="label">SCORE</span>
+          <span id="score">0</span>
+        </div>
+        <div class="hud-group">
+          <span class="label">LEVEL</span>
+          <span id="level">1</span>
+        </div>
+        <div class="hud-group">
+          <span class="label">HEALTH</span>
+          <span id="health">100</span>
+        </div>
+        <div class="hud-group">
+          <span class="label">BEST</span>
+          <span id="best">0</span>
+        </div>
+      </div>
+
+      <canvas id="gameCanvas" width="960" height="540"></canvas>
+
+      <div id="overlay" class="overlay visible">
+        <div class="panel">
+          <p class="eyebrow">FREE RETRO AI SHOOTER</p>
+          <h1 id="titleText">NEON DRIFT</h1>
+          <p id="statusText">
+            Defend the star lane. Survive waves of hostile drones and the AI command network.
+          </p>
+          <button id="startButton">START GAME</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+      const scoreEl = document.getElementById("score");
+      const levelEl = document.getElementById("level");
+      const healthEl = document.getElementById("health");
+      const bestEl = document.getElementById("best");
+      const overlay = document.getElementById("overlay");
+      const titleText = document.getElementById("titleText");
+      const statusText = document.getElementById("statusText");
+      const startButton = document.getElementById("startButton");
+
+      const world = {
+        width: canvas.width,
+        height: canvas.height,
+        stars: [],
+        pointer: { x: canvas.width / 2, y: canvas.height / 2, down: false },
+        keys: {},
+        lastTime: 0,
+        score: 0,
+        level: 1,
+        best: Number(localStorage.getItem("neon-drift-best") || 0),
+        running: false,
+        gameOver: false,
+        waveDelay: 0,
+        enemies: [],
+        bullets: [],
+        particles: [],
+        droneBullets: []
+      };
+
+      bestEl.textContent = world.best;
+
+      function createStars() {
+        world.stars = Array.from({ length: 120 }, () => ({
+          x: Math.random() * world.width,
+          y: Math.random() * world.height,
+          r: Math.random() * 2.2 + 0.7,
+          speed: Math.random() * 30 + 10
+        }));
+      }
+
+      function clamp(value, min, max) {
+        return Math.min(Math.max(value, min), max);
+      }
+
+      function distance(ax, ay, bx, by) {
+        return Math.hypot(bx - ax, by - ay);
+      }
+
+      function randomRange(min, max) {
+        return Math.random() * (max - min) + min;
+      }
+
+      function createPlayer() {
+        return {
+          x: world.width / 2,
+          y: world.height / 2,
+          radius: 17,
+          speed: 255,
+          angle: 0,
+          health: 100,
+          fireCooldown: 0,
+          weapon: "pulse",
+          droneOrbit: 0,
+          droneTimer: 0
+        };
+      }
+
+      let player = createPlayer();
+
+      function resetGame() {
+        player = createPlayer();
+        world.score = 0;
+        world.level = 1;
+        world.running = true;
+        world.gameOver = false;
+        world.waveDelay = 0;
+        world.enemies = [];
+        world.bullets = [];
+        world.particles = [];
+        world.droneBullets = [];
+        scoreEl.textContent = "0";
+        levelEl.textContent = "1";
+        healthEl.textContent = "100";
+        titleText.textContent = "NEON DRIFT";
+        statusText.textContent = "Defend the star lane. Survive waves of hostile drones and the AI command network.";
+        overlay.classList.remove("visible");
+        spawnWave();
+      }
+
+      function setOverlay(title, message, showButton = true) {
+        titleText.textContent = title;
+        statusText.textContent = message;
+        startButton.style.display = showButton ? "inline-flex" : "none";
+        overlay.classList.add("visible");
+      }
+
+      function addParticles(x, y, color, count = 12) {
+        for (let i = 0; i < count; i += 1) {
+          world.particles.push({
+            x,
+            y,
+            vx: randomRange(-90, 90),
+            vy: randomRange(-90, 90),
+            radius: randomRange(2, 5),
+            life: randomRange(0.4, 0.9),
+            color
+          });
+        }
+      }
+
+      function spawnEnemy(type = "scout") {
+        const side = Math.floor(Math.random() * 4);
+        let x = 0;
+        let y = 0;
+
+        if (side === 0) {
+          x = randomRange(-30, world.width + 30);
+          y = -30;
+        } else if (side === 1) {
+          x = world.width + 30;
+          y = randomRange(-30, world.height + 30);
+        } else if (side === 2) {
+          x = randomRange(-30, world.width + 30);
+          y = world.height + 30;
+        } else {
+          x = -30;
+          y = randomRange(-30, world.height + 30);
+        }
+
+        const enemy = {
+          x,
+          y,
+          radius: type === "brute" ? 18 : type === "ranger" ? 14 : 12,
+          speed: type === "brute" ? 70 : type === "ranger" ? 95 : 120,
+          health: type === "brute" ? 4 : type === "ranger" ? 2 : 1,
+          maxHealth: type === "brute" ? 4 : type === "ranger" ? 2 : 1,
+          angle: 0,
+          shotCooldown: randomRange(0.8, 1.6),
+          strafe: Math.random() > 0.5 ? 1 : -1,
+          type
+        };
+
+        world.enemies.push(enemy);
+      }
+
+      function spawnWave() {
+        const count = Math.min(6 + world.level * 2, 24);
+        for (let i = 0; i < count; i += 1) {
+          const chance = Math.random();
+          let type = "scout";
+
+          if (world.level >= 3 && chance > 0.72) type = "ranger";
+          if (world.level >= 5 && chance > 0.9) type = "brute";
+
+          spawnEnemy(type);
+        }
+      }
+
+      function fireBullet(owner, x, y, angle, speed, color, radius = 4, damage = 1) {
+        world.bullets.push({
+          owner,
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          radius,
+          color,
+          damage,
+          life: 1.7
+        });
+      }
+
+      function firePlayerWeapon() {
+        if (player.fireCooldown > 0) return;
+
+        const angle = Math.atan2(world.pointer.y - player.y, world.pointer.x - player.x);
+        player.angle = angle;
+        fireBullet("player", player.x + Math.cos(angle) * 22, player.y + Math.sin(angle) * 22, angle, 520, "#72e9ff", 4, 1);
+        player.fireCooldown = 0.15;
+
+        addParticles(player.x + Math.cos(angle) * 22, player.y + Math.sin(angle) * 22, "#72e9ff", 4);
+      }
+
+      function fireDroneWeapon(x, y, angle) {
+        fireBullet("player", x, y, angle, 560, "#8d7dff", 3.5, 1);
+      }
+
+      function updatePlayer(dt) {
+        const moveX = (world.keys.ArrowRight || world.keys.KeyD ? 1 : 0) - (world.keys.ArrowLeft || world.keys.KeyA ? 1 : 0);
+        const moveY = (world.keys.ArrowDown || world.keys.KeyS ? 1 : 0) - (world.keys.ArrowUp || world.keys.KeyW ? 1 : 0);
+
+        if (moveX !== 0 || moveY !== 0) {
+          const len = Math.hypot(moveX, moveY) || 1;
+          player.x += (moveX / len) * player.speed * dt;
+          player.y += (moveY / len) * player.speed * dt;
+        }
+
+        player.x = clamp(player.x, 26, world.width - 26);
+        player.y = clamp(player.y, 26, world.height - 26);
+
+        player.angle = Math.atan2(world.pointer.y - player.y, world.pointer.x - player.x);
+        player.fireCooldown = Math.max(0, player.fireCooldown - dt);
+
+        if (world.pointer.down || world.keys.Space) {
+          firePlayerWeapon();
+        }
+
+        if (world.level >= 2) {
+          player.droneTimer += dt;
+          const droneCount = 1 + Math.min(Math.floor((world.level - 1) / 2), 2);
+          if (player.droneTimer > 0.25) {
+            player.droneTimer = 0;
+            const orbit = (performance.now() * 0.001 * 2.7);
+            const baseAngle = orbit + (Math.PI * 2 / droneCount);
+
+            for (let i = 0; i < droneCount; i += 1) {
+              const angle = baseAngle + (Math.PI * 2 * i) / droneCount;
+              const offset = 45 + i * 18;
+              const dx = Math.cos(angle) * offset;
+              const dy = Math.sin(angle) * offset;
+              const droneX = player.x + dx;
+              const droneY = player.y + dy;
+
+              let target = null;
+              let nearest = Infinity;
+
+              for (const enemy of world.enemies) {
+                const d = distance(droneX, droneY, enemy.x, enemy.y);
+                if (d < nearest) {
+                  nearest = d;
+                  target = enemy;
+                }
+              }
+
+              if (target) {
+                const shotAngle = Math.atan2(target.y - droneY, target.x - droneX);
+                fireDroneWeapon(droneX, droneY, shotAngle);
+              }
+            }
+          }
+        }
+      }
+
+      function updateEnemies(dt) {
+        for (const enemy of world.enemies) {
+          const dx = player.x - enemy.x;
+          const dy = player.y - enemy.y;
+          const dist = Math.hypot(dx, dy) || 1;
+
+          if (dist > 0) {
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const speedFactor = enemy.type === "brute" ? 0.45 : enemy.type === "ranger" ? 0.75 : 1;
+
+            if (enemy.type === "ranger") {
+              const orbit = enemy.strafe * 0.8;
+              enemy.x += (-ny * speedFactor * enemy.speed + nx * orbit * 25) * dt;
+              enemy.y += (nx * speedFactor * enemy.speed + ny * orbit * 25) * dt;
+            } else {
+              enemy.x += nx * enemy.speed * speedFactor * dt;
+              enemy.y += ny * enemy.speed * speedFactor * dt;
+            }
+
+            if (enemy.type !== "brute") {
+              enemy.x += Math.cos((enemy.x + enemy.y) * 0.02 + performance.now() * 0.001) * enemy.strafe * 20 * dt;
+            }
+          }
+
+          enemy.angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+          enemy.shotCooldown -= dt;
+
+          if (dist < 360 && enemy.shotCooldown <= 0) {
+            const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+            fireBullet(
+              "enemy",
+              enemy.x + Math.cos(angle) * (enemy.radius + 8),
+              enemy.y + Math.sin(angle) * (enemy.radius + 8),
+              angle,
+              enemy.type === "ranger" ? 260 : 220,
+              enemy.type === "brute" ? "#ff6a88" : enemy.type === "ranger" ? "#ffd76a" : "#ff75d5",
+              4,
+              enemy.type === "brute" ? 10 : 8
+            );
+            enemy.shotCooldown = enemy.type === "ranger" ? 1.3 : 1.0;
+          }
+        }
+      }
+
+      function updateBullets(dt) {
+        for (let i = world.bullets.length - 1; i >= 0; i -= 1) {
+          const b = world.bullets[i];
+          b.x += b.vx * dt;
+          b.y += b.vy * dt;
+          b.life -= dt;
+
+          if (
+            b.x < -30 ||
+            b.x > world.width + 30 ||
+            b.y < -30 ||
+            b.y > world.height + 30 ||
+            b.life <= 0
+          ) {
+            world.bullets.splice(i, 1);
+            continue;
+          }
+
+          if (b.owner === "player") {
+            for (let j = world.enemies.length - 1; j >= 0; j -= 1) {
+              const enemy = world.enemies[j];
+              if (distance(b.x, b.y, enemy.x, enemy.y) < enemy.radius + b.radius) {
+                enemy.health -= b.damage;
+                addParticles(b.x, b.y, b.color, 6);
+                world.bullets.splice(i, 1);
+
+                if (enemy.health <= 0) {
+                  world.score += enemy.type === "brute" ? 35 : enemy.type === "ranger" ? 18 : 10;
+                  addParticles(enemy.x, enemy.y, enemy.type === "brute" ? "#ff6a88" : enemy.type === "ranger" ? "#ffd76a" : "#72e9ff", 18);
+                  world.enemies.splice(j, 1);
+                }
+                break;
+              }
+            }
+          } else if (b.owner === "enemy") {
+            if (distance(b.x, b.y, player.x, player.y) < player.radius + b.radius) {
+              player.health -= b.damage;
+              addParticles(b.x, b.y, "#ff6a88", 8);
+              world.bullets.splice(i, 1);
+              if (player.health <= 0) {
+                endGame();
+              }
+            }
+          }
+        }
+      }
+
+      function updateParticles(dt) {
+        for (let i = world.particles.length - 1; i >= 0; i -= 1) {
+          const p = world.particles[i];
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.life -= dt;
+          if (p.life <= 0) world.particles.splice(i, 1);
+        }
+      }
+
+      function endGame() {
+        world.running = false;
+        world.gameOver = true;
+        world.best = Math.max(world.best, world.score);
+        localStorage.setItem("neon-drift-best", String(world.best));
+        bestEl.textContent = String(world.best);
+        setOverlay("MISSION FAILED", `Final score: ${world.score}. The AI grid overran your position.`, true);
+        startButton.textContent = "PLAY AGAIN";
+      }
+
+      function tickGame(dt) {
+        if (!world.running) return;
+
+        world.waveDelay -= dt;
+        updatePlayer(dt);
+        updateEnemies(dt);
+        updateBullets(dt);
+        updateParticles(dt);
+
+        scoreEl.textContent = String(world.score);
+        levelEl.textContent = String(world.level);
+        healthEl.textContent = String(Math.max(0, Math.round(player.health)));
+
+        if (world.enemies.length === 0 && world.waveDelay <= 0) {
+          world.level += 1;
+          world.waveDelay = 1.2;
+          spawnWave();
+        }
+      }
+
+      function drawBackground() {
+        ctx.fillStyle = "#050816";
+        ctx.fillRect(0, 0, world.width, world.height);
+
+        ctx.fillStyle = "rgba(110, 160, 255, 0.2)";
+        for (const star of world.stars) {
+          star.y += star.speed * 0.016;
+          if (star.y > world.height + 8) {
+            star.y = -8;
+            star.x = Math.random() * world.width;
+          }
+          ctx.beginPath();
+          ctx.fillStyle = "rgba(255,255,255,0.8)";
+          ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function drawPlayer() {
+        ctx.save();
+        ctx.translate(player.x, player.y);
+        ctx.rotate(player.angle);
+
+        ctx.fillStyle = "#72e9ff";
+        ctx.beginPath();
+        ctx.moveTo(18, 0);
+        ctx.lineTo(-12, -10);
+        ctx.lineTo(-7, 0);
+        ctx.lineTo(-12, 10);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        ctx.fillRect(-14, -3, 8, 6);
+
+        ctx.restore();
+      }
+
+      function drawEnemy(enemy) {
+        ctx.save();
+        ctx.translate(enemy.x, enemy.y);
+        ctx.rotate(enemy.angle);
+
+        ctx.fillStyle = enemy.type === "brute" ? "#ff6a88" : enemy.type === "ranger" ? "#ffd76a" : "#ff75d5";
+        ctx.beginPath();
+        ctx.moveTo(enemy.radius, 0);
+        for (let i = 1; i <= 6; i += 1) {
+          const ang = (Math.PI * 2 * i) / 6;
+          const r = i % 2 === 0 ? enemy.radius * 0.7 : enemy.radius;
+          ctx.lineTo(Math.cos(ang) * r, Math.sin(ang) * r);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = "rgba(17, 12, 24, 0.9)";
+        ctx.fillRect(-enemy.radius, -enemy.radius - 12, enemy.radius * 2, 5);
+        ctx.fillStyle = "#7ef7b4";
+        ctx.fillRect(-enemy.radius, -enemy.radius - 12, (enemy.health / enemy.maxHealth) * enemy.radius * 2, 5);
+
+        ctx.restore();
+      }
+
+      function drawBullets() {
+        for (const b of world.bullets) {
+          ctx.beginPath();
+          ctx.fillStyle = b.color;
+          ctx.shadowBlur = 12;
+          ctx.shadowColor = b.color;
+          ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      }
+
+      function drawParticles() {
+        for (const p of world.particles) {
+          ctx.globalAlpha = Math.max(0, p.life);
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      function render() {
+        drawBackground();
+        drawBullets();
+        for (const enemy of world.enemies) drawEnemy(enemy);
+        drawPlayer();
+        drawParticles();
+
+        if (world.running) {
+          ctx.fillStyle = "rgba(114, 233, 255, 0.24)";
+          ctx.beginPath();
+          ctx.arc(player.x, player.y, 44, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(114, 233, 255, 0.16)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+
+      function gameLoop(timestamp) {
+        const dt = Math.min((timestamp - world.lastTime) / 1000 || 0.016, 0.033);
+        world.lastTime = timestamp;
+
+        tickGame(dt);
+        render();
+        requestAnimationFrame(gameLoop);
+      }
+
+      window.addEventListener("keydown", (event) => {
+        world.keys[event.code] = true;
+        if (event.code === "Space") {
+          event.preventDefault();
+        }
+      });
+
+      window.addEventListener("keyup", (event) => {
+        world.keys[event.code] = false;
+      });
+
+      window.addEventListener("pointermove", (event) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        world.pointer.x = (event.clientX - rect.left) * scaleX;
+        world.pointer.y = (event.clientY - rect.top) * scaleY;
+      });
+
+      window.addEventListener("pointerdown", () => {
+        world.pointer.down = true;
+      });
+
+      window.addEventListener("pointerup", () => {
+        world.pointer.down = false;
+      });
+
+      startButton.addEventListener("click", () => {
+        resetGame();
+      });
+
+      createStars();
+      setOverlay("NEON DRIFT", "Defend the star lane. Survive waves of hostile drones and the AI command network.", true);
+      requestAnimationFrame(gameLoop);
+    </script>
+  </body>
+</html>
